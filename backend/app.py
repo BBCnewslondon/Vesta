@@ -183,6 +183,88 @@ def on_sensor_update(data: Dict[str, Any]) -> None:
     emit("sensor_update", data, broadcast=True, include_self=False)
 
 
+# --- Gait analysis -------------------------------------------------------------
+def analyze_gait() -> dict | None:
+    """Analyze gait from sensor data using FFT to compute cadence."""
+    try:
+        import numpy as np
+        from scipy.fft import fft, fftfreq
+    except ImportError:
+        return None
+
+    if not DATA_FILE.exists():
+        return None
+
+    rows = []
+    with DATA_FILE.open("r", newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            rows.append(row)
+
+    if len(rows) < 2:
+        return None
+
+    # Parse timestamps
+    timestamps = []
+    for row in rows:
+        try:
+            ts = datetime.fromisoformat(row["server_timestamp_utc"])
+            timestamps.append(ts)
+        except (ValueError, TypeError):
+            continue
+
+    if len(timestamps) < 2:
+        return None
+
+    # Compute mean dt
+    dts = [(timestamps[i + 1] - timestamps[i]).total_seconds() for i in range(len(timestamps) - 1)]
+    dt = np.mean(dts)
+    if dt <= 0 or np.isnan(dt):
+        return None
+
+    fs = 1 / dt
+
+    # Get acceleration data
+    try:
+        acc_x = [float(row["acc_x"]) for row in rows]
+        acc_y = [float(row["acc_y"]) for row in rows]
+        acc_z = [float(row["acc_z"]) for row in rows]
+    except (ValueError, KeyError):
+        return None
+
+    acc_mag = np.sqrt(np.array(acc_x) ** 2 + np.array(acc_y) ** 2 + np.array(acc_z) ** 2)
+
+    N = len(acc_mag)
+    yf = fft(acc_mag)
+    xf = fftfreq(N, 1 / fs)
+
+    positive_freqs = xf[xf > 0]
+    magnitudes = np.abs(yf[xf > 0])
+
+    if len(magnitudes) == 0:
+        return None
+
+    dominant_idx = np.argmax(magnitudes)
+    dominant_freq = positive_freqs[dominant_idx]
+    cadence = dominant_freq * 60
+
+    return {
+        "cadence": float(cadence),
+        "dominant_frequency": float(dominant_freq),
+        "sampling_frequency": float(fs),
+        "data_points": N,
+    }
+
+
+@app.get("/api/gait_analysis")
+def gait_analysis():
+    """Endpoint to analyze gait from sensor data and return cadence."""
+    result = analyze_gait()
+    if result is None:
+        return jsonify(error="Insufficient or invalid data for gait analysis"), 400
+    return jsonify(result)
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "3000"))
     try:
