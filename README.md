@@ -9,6 +9,7 @@ MotionMonitor is a React Native application that reads motion sensor data from a
 - Configurable endpoint field with a one-tap JSON payload sender for rapid backend testing.
 - Built-in Socket.IO client that streams readings to a configurable WebSocket namespace.
 - Rolling trend charts for accelerometer and gyroscope axes plus magnitude statistics, mirroring the Jupyter analysis notebook.
+- Clinician dashboard mode that visualizes the last 50 streamed samples coming from the backend feed for live demos.
 - Fall detection alert loop powered by a Flask back end with CSV logging for model development.
 - Light and dark mode aware UI with last-updated timestamps for each sensor channel.
 
@@ -59,6 +60,7 @@ npm run ios
 4. Select **Send Snapshot** to POST the most recent accelerometer and gyroscope readings as JSON.
 5. Configure the WebSocket URL (defaults to `http://localhost:3000/stream`) to stream live readings to your Socket.IO backend.
 6. Watch the accelerometer and gyroscope charts fill in with live data; aggregated min/mean/max stats update as samples arrive.
+7. Scroll to **Clinician Dashboard** to view the last 50 streamed magnitudes coming back from the server in real time.
 
 > The default endpoint (`http://localhost:3000/api/sensors`) is a placeholder; replace it with your backend URL. On physical devices, ensure the endpoint is reachable over the network.
 
@@ -74,6 +76,7 @@ A companion Flask + Socket.IO backend lives in the `backend/` folder. It exposes
 - `POST /api/sensors` for manual snapshots (mirrors the app's **Send Snapshot** button).
 - Socket.IO namespace `/stream` for live `sensor_update` events.
 - `GET /health` for readiness checks.
+- `GET /api/gait_analysis` to compute cadence (steps per minute) from the recorded CSV using FFT.
 
 Quick start (from `backend/`):
 

@@ -217,7 +217,7 @@ def on_sensor_update(data: Dict[str, Any]) -> None:
     except Exception as error:  # pragma: no cover
         app.logger.error("Error in fall detection: %s", error)
 
-    emit("sensor_update", data, broadcast=True, include_self=False)
+    emit("sensor_update", data, broadcast=True)
 
 
 # --- Gait analysis -------------------------------------------------------------

@@ -74,13 +74,27 @@ const INITIAL_READING: SensorReading = {
   timestamp: 0,
 };
 const HISTORY_LIMIT = 200;
+const CLINICIAN_HISTORY_LIMIT = 50;
 
 type SensorSample = SensorReading & {
   magnitude: number;
 };
 
+type ClinicianSample = {
+  timestamp: number;
+  magnitude: number;
+};
+
+function coerceNumber(value: number | string | null | undefined): number {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
 function computeMagnitude(reading: SensorReading): number {
-  return Math.sqrt(reading.x ** 2 + reading.y ** 2 + reading.z ** 2);
+  const x = coerceNumber(reading.x);
+  const y = coerceNumber(reading.y);
+  const z = coerceNumber(reading.z);
+  return Math.sqrt(x ** 2 + y ** 2 + z ** 2);
 }
 
 function appendSample(history: SensorSample[], reading: SensorReading): SensorSample[] {
@@ -96,6 +110,33 @@ function appendSample(history: SensorSample[], reading: SensorReading): SensorSa
   const next = [...history, sample];
   if (next.length > HISTORY_LIMIT) {
     return next.slice(next.length - HISTORY_LIMIT);
+  }
+
+  return next;
+}
+
+function appendClinicianSample(
+  history: ClinicianSample[],
+  payload: SensorEnvelope,
+): ClinicianSample[] {
+  const baseTimestamp = payload.timestamp || payload.accelerometer?.timestamp;
+  const reading = payload.accelerometer;
+
+  const timestampValue = Number(baseTimestamp);
+
+  if (!reading || !Number.isFinite(timestampValue)) {
+    return history;
+  }
+
+  const magnitude = computeMagnitude(reading);
+  const sample: ClinicianSample = {
+    timestamp: timestampValue,
+    magnitude,
+  };
+
+  const next = [...history, sample];
+  if (next.length > CLINICIAN_HISTORY_LIMIT) {
+    return next.slice(next.length - CLINICIAN_HISTORY_LIMIT);
   }
 
   return next;
@@ -158,6 +199,7 @@ function AppContent({ isDarkMode }: AppContentProps) {
     useState<SensorReading>(INITIAL_READING);
   const [accelerometerHistory, setAccelerometerHistory] = useState<SensorSample[]>([]);
   const [gyroscopeHistory, setGyroscopeHistory] = useState<SensorSample[]>([]);
+  const [clinicianHistory, setClinicianHistory] = useState<ClinicianSample[]>([]);
   const [serverUrl, setServerUrl] = useState('http://localhost:3000/api/sensors');
   const [isSending, setIsSending] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -229,6 +271,7 @@ function AppContent({ isDarkMode }: AppContentProps) {
       socketRef.current = null;
     }
     setSocketStatus('disconnected');
+    setClinicianHistory([]);
   }, []);
 
   useEffect(() => {
@@ -266,6 +309,10 @@ function AppContent({ isDarkMode }: AppContentProps) {
           payload?.message || 'The server detected a potential fall.',
           [{ text: 'OK' }],
         );
+      });
+
+      socket.on('sensor_update', (payload: SensorEnvelope) => {
+        setClinicianHistory(previous => appendClinicianSample(previous, payload));
       });
 
       socket.on('connect_error', (error: Error) => {
@@ -339,6 +386,7 @@ function AppContent({ isDarkMode }: AppContentProps) {
     setGyroscopeReading({ ...INITIAL_READING, timestamp: Date.now() });
     setAccelerometerHistory([]);
     setGyroscopeHistory([]);
+    setClinicianHistory([]);
     setSocketStatusMessage('Streaming paused; connection closed.');
   }, [disconnectSocket]);
 
@@ -415,6 +463,22 @@ function AppContent({ isDarkMode }: AppContentProps) {
       },
     ],
     [gyroscopeHistory],
+  );
+
+  const clinicianTimestamps = useMemo(
+    () => clinicianHistory.map(sample => sample.timestamp),
+    [clinicianHistory],
+  );
+
+  const clinicianSeries = useMemo<ChartSeries[]>(
+    () => [
+      {
+        label: 'Stream |a|',
+        color: '#8854d0',
+        values: clinicianHistory.map(sample => sample.magnitude),
+      },
+    ],
+    [clinicianHistory],
   );
 
   const accelerometerStats = useMemo(
@@ -549,6 +613,23 @@ function AppContent({ isDarkMode }: AppContentProps) {
         {socketStatusMessage ? (
           <Text style={[styles.statusTextSmall, textColor]}>{socketStatusMessage}</Text>
         ) : null}
+      </View>
+
+      <View
+        style={[
+          styles.section,
+          isDarkMode ? styles.sectionDark : styles.sectionLight,
+        ]}
+      >
+        <Text style={[styles.sectionTitle, textColor]}>Clinician Dashboard</Text>
+        <Text style={[styles.helperText, textColor]}>
+          Last {CLINICIAN_HISTORY_LIMIT} streamed accelerometer magnitudes from the backend feed.
+        </Text>
+        <SensorChart
+          timestamps={clinicianTimestamps}
+          series={clinicianSeries}
+          isDarkMode={isDarkMode}
+        />
       </View>
 
       <View

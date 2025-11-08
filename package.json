@@ -16,6 +16,7 @@
     "react-native-safe-area-context": "^5.5.2",
     "react-native-sensors": "^7.3.6",
     "react-native-svg": "^15.8.0",
+    "victory-native": "^36.8.6",
     "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
