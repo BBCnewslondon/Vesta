@@ -9,7 +9,96 @@
 				"start"
 			],
 			"isBackground": true,
-			"group": "build"
+			"group": "build",
+			"problemMatcher": [
+				{
+					"owner": "metro-watch",
+					"pattern": {
+						"regexp": "^(.*)$",
+						"message": 1
+					},
+					"background": {
+						"activeOnStart": true,
+						"beginsPattern": ".*",
+						"endsPattern": "Metro waiting on"
+					}
+				}
+			]
+		},
+		{
+			"label": "Start Backend",
+			"type": "shell",
+			"command": "backend\\.venv\\Scripts\\python.exe",
+			"args": [
+				"backend/app.py"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"isBackground": true,
+			"presentation": {
+				"panel": "dedicated"
+			},
+			"problemMatcher": [
+				{
+					"owner": "backend-server",
+					"pattern": {
+						"regexp": "^(.*)$",
+						"message": 1
+					},
+					"background": {
+						"activeOnStart": true,
+						"beginsPattern": ".*",
+						"endsPattern": "MotionMonitor backend listening"
+					}
+				}
+			]
+		},
+		{
+			"label": "ADB Reverse Ports",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-Command",
+				"adb reverse tcp:3000 tcp:3000; adb reverse tcp:8081 tcp:8081"
+			],
+			"presentation": {
+				"reveal": "never"
+			}
+		},
+		{
+			"label": "Install Android App",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"run",
+				"android"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"presentation": {
+				"panel": "dedicated"
+			}
+		},
+		{
+			"label": "Run Motion Monitor",
+			"type": "shell",
+			"command": "echo",
+			"args": [
+				"Motion Monitor tasks completed."
+			],
+			"dependsOn": [
+				"Start Backend",
+				"Start Metro",
+				"ADB Reverse Ports",
+				"Install Android App"
+			],
+			"dependsOrder": "sequence",
+			"problemMatcher": []
 		}
 	]
 }

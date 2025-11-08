@@ -185,4 +185,14 @@ def on_sensor_update(data: Dict[str, Any]) -> None:
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "3000"))
-    socketio.run(app, host="0.0.0.0", port=port, allow_unsafe_werkzeug=True)
+    try:
+        socketio.run(
+            app,
+            host="0.0.0.0",
+            port=port,
+            allow_unsafe_werkzeug=True,
+            log_output=True,
+        )
+    except Exception as error:  # pragma: no cover
+        print(f"Backend failed to start: {error}", flush=True)
+        raise

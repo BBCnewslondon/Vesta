@@ -12,7 +12,7 @@
 
 - [x] Create and Run Task – Added VS Code task "Start Metro" (npm start).
 
-- [ ] Launch the Project – Awaiting user confirmation to run the app.
+- [x] Launch the Project – Backend running on port 3000; Metro bundler started.
 
 - [x] Ensure Documentation is Complete – README updated with motion monitoring details and checklist cleaned.
 

@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Button,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -313,8 +314,9 @@ function AppContent({ isDarkMode }: AppContentProps) {
   const textColor = isDarkMode ? styles.textLight : styles.textDark;
 
   return (
-    <View
-      style={[styles.container, { paddingTop: insets.top || 16 }]}
+    <ScrollView
+      style={{ flex: 1 }}
+      contentContainerStyle={[styles.container, { paddingTop: insets.top || 16 }]}
     >
       <Text style={[styles.title, textColor]}>Motion Monitor</Text>
       <Text style={[styles.subtitle, textColor]}>
@@ -452,7 +454,7 @@ function AppContent({ isDarkMode }: AppContentProps) {
           ) : null}
         </View>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -510,7 +512,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   container: {
-    flex: 1,
     paddingHorizontal: 24,
     gap: 24,
   },
