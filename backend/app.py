@@ -10,12 +10,46 @@ from typing import Any, Dict
 
 from flask import Flask, jsonify, request
 from flask_socketio import SocketIO, emit
+from twilio.rest import Client
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "motion-monitor-backend"
 
 # Use eventlet for compatibility with Flask-SocketIO on Windows/Python.
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
+
+# --- Twilio setup for SMS notifications ---------------------------------------------
+TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID")
+TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN")
+TWILIO_PHONE_NUMBER = os.environ.get("TWILIO_PHONE_NUMBER")
+RECIPIENT_PHONE_NUMBER = "+440788663048"
+
+twilio_client = None
+if TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN and TWILIO_PHONE_NUMBER:
+    twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+    app.logger.info("Twilio client initialized.")
+else:
+    app.logger.warning(
+        "Twilio credentials not found in environment variables. SMS notifications will be disabled."
+    )
+
+
+def send_sms_notification(message: str) -> None:
+    """Send an SMS notification using Twilio."""
+    if not twilio_client:
+        app.logger.warning("Twilio client not initialized. Cannot send SMS.")
+        return
+
+    try:
+        twilio_client.messages.create(
+            body=message,
+            from_=TWILIO_PHONE_NUMBER,
+            to=RECIPIENT_PHONE_NUMBER,
+        )
+        app.logger.info("SMS notification sent to %s", RECIPIENT_PHONE_NUMBER)
+    except Exception as e:
+        app.logger.error("Failed to send SMS: %s", e)
+
 
 # --- Persistent data logging setup ----------------------------------------------------
 DATA_FILE = Path(__file__).with_name("sensor_data.csv")
@@ -82,17 +116,20 @@ def _check_for_fall(sid: str, acc_x: Any, acc_y: Any, acc_z: Any, timestamp_ms: 
     if state.get("in_freefall"):
         elapsed = timestamp_value - state.get("freefall_time", 0.0)
         if acc_mag > IMPACT_THRESHOLD and elapsed < FALL_TIME_WINDOW_MS:
+            fall_time = _current_timestamp()
+            fall_message = f"Fall detected at {fall_time} with impact acceleration of {acc_mag:.2f} m/s^2."
             socketio.emit(
                 "fall_detected",
                 {
                     "message": "Fall detected",
-                    "timestamp": _current_timestamp(),
+                    "timestamp": fall_time,
                     "acceleration": acc_mag,
                 },
                 to=sid,
                 namespace="/stream",
             )
             app.logger.warning("Fall detected for connection %s", sid)
+            send_sms_notification(fall_message)
             state["in_freefall"] = False
         elif elapsed >= FALL_TIME_WINDOW_MS:
             state["in_freefall"] = False
