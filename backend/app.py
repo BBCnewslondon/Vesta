@@ -82,6 +82,7 @@ def _close_data_file() -> None:
 # --- Fall detection state -------------------------------------------------------------
 FREEFALL_THRESHOLD = 5.0  # m/s^2
 IMPACT_THRESHOLD = 15.0  # m/s^2
+GYRO_IMPACT_THRESHOLD = 2.0  # rad/s
 FALL_TIME_WINDOW_MS = 1_000  # ms
 
 user_state: Dict[str, Dict[str, Any]] = {}
@@ -101,7 +102,16 @@ def _coerce_timestamp_ms(value: Any) -> float:
         return datetime.utcnow().timestamp() * 1000.0
 
 
-def _check_for_fall(sid: str, acc_x: Any, acc_y: Any, acc_z: Any, timestamp_ms: Any) -> None:
+def _check_for_fall(
+    sid: str,
+    acc_x: Any,
+    acc_y: Any,
+    acc_z: Any,
+    gyro_x: Any,
+    gyro_y: Any,
+    gyro_z: Any,
+    timestamp_ms: Any,
+) -> None:
     if sid not in user_state:
         return
 
@@ -109,15 +119,26 @@ def _check_for_fall(sid: str, acc_x: Any, acc_y: Any, acc_z: Any, timestamp_ms: 
     acc_x_f = _coerce_float(acc_x)
     acc_y_f = _coerce_float(acc_y)
     acc_z_f = _coerce_float(acc_z)
+    gyro_x_f = _coerce_float(gyro_x)
+    gyro_y_f = _coerce_float(gyro_y)
+    gyro_z_f = _coerce_float(gyro_z)
     timestamp_value = _coerce_timestamp_ms(timestamp_ms)
 
     acc_mag = (acc_x_f**2 + acc_y_f**2 + acc_z_f**2) ** 0.5
+    gyro_mag = (gyro_x_f**2 + gyro_y_f**2 + gyro_z_f**2) ** 0.5
 
     if state.get("in_freefall"):
         elapsed = timestamp_value - state.get("freefall_time", 0.0)
-        if acc_mag > IMPACT_THRESHOLD and elapsed < FALL_TIME_WINDOW_MS:
+        if (
+            acc_mag > IMPACT_THRESHOLD
+            and gyro_mag > GYRO_IMPACT_THRESHOLD
+            and elapsed < FALL_TIME_WINDOW_MS
+        ):
             fall_time = _current_timestamp()
-            fall_message = f"Fall detected at {fall_time} with impact acceleration of {acc_mag:.2f} m/s^2."
+            fall_message = (
+                "Fall detected at "
+                f"{fall_time} with |a|={acc_mag:.2f} m/s^2 and |omega|={gyro_mag:.2f} rad/s."
+            )
             socketio.emit(
                 "fall_detected",
                 {
@@ -212,6 +233,9 @@ def on_sensor_update(data: Dict[str, Any]) -> None:
             acc.get("x"),
             acc.get("y"),
             acc.get("z"),
+            gyro.get("x"),
+            gyro.get("y"),
+            gyro.get("z"),
             timestamp_ms,
         )
     except Exception as error:  # pragma: no cover
@@ -294,6 +318,7 @@ def analyze_gait() -> dict | None:
 
 
 @app.get("/api/gait_analysis")
+@app.get("/api/gait-analysis")
 def gait_analysis():
     """Endpoint to analyze gait from sensor data and return cadence."""
     result = analyze_gait()

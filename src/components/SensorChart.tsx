@@ -7,6 +7,17 @@ const GRID_LINE_COUNT = 4;
 const HORIZONTAL_PADDING = 16;
 const VERTICAL_PADDING = 12;
 
+const chartPalette = {
+  surfaceLight: '#FFE6D0',
+  surfaceDark: '#2B1A14',
+  borderLight: '#F2B27C',
+  borderDark: '#4A2A1D',
+  textLight: '#FBD9B4',
+  textDark: '#3C1F13',
+  gridLight: '#F4D8C1',
+  gridDark: '#3C241B',
+};
+
 export type ChartSeries = {
   label: string;
   color: string;
@@ -108,7 +119,10 @@ function SensorChart({ timestamps, series, isDarkMode }: SensorChartProps) {
 
   return (
     <View style={styles.wrapper}>
-      <View style={[styles.chartSurface, isDarkMode ? styles.surfaceDark : styles.surfaceLight]} onLayout={handleLayout}>
+      <View
+        style={[styles.chartSurface, isDarkMode ? styles.surfaceDark : styles.surfaceLight]}
+        onLayout={handleLayout}
+      >
         {chartData.paths.length === 0 ? (
           <Text style={[styles.placeholderText, textColor]}>Collecting sensor samples…</Text>
         ) : (
@@ -169,12 +183,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   surfaceLight: {
-    borderColor: '#e0e6ed',
-    backgroundColor: '#ffffff',
+    borderColor: chartPalette.borderLight,
+    backgroundColor: chartPalette.surfaceLight,
   },
   surfaceDark: {
-    borderColor: '#2e3441',
-    backgroundColor: '#1c1f27',
+    borderColor: chartPalette.borderDark,
+    backgroundColor: chartPalette.surfaceDark,
   },
   placeholderText: {
     textAlign: 'center',
@@ -199,16 +213,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   textLight: {
-    color: '#f0f4ff',
+    color: chartPalette.textLight,
   },
   textDark: {
-    color: '#2c3e50',
+    color: chartPalette.textDark,
   },
   gridLight: {
-    color: '#eef1f6',
+    color: chartPalette.gridLight,
   },
   gridDark: {
-    color: '#2c3240',
+    color: chartPalette.gridDark,
   },
 });
 

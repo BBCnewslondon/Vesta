@@ -66,6 +66,26 @@ const SOCKET_STATUS_LABEL: Record<SocketStatus, string> = {
   error: 'Connection error',
 };
 
+const palette = {
+  backgroundLight: '#FFF4E6',
+  backgroundDark: '#1D130D',
+  surfaceLight: '#FFE1C6',
+  surfaceDark: '#2C1A14',
+  borderLight: '#F2B27C',
+  borderDark: '#4A2A1D',
+  textOnLight: '#432616',
+  textOnDark: '#FCE3C6',
+  headingLight: '#B74822',
+  headingDark: '#F7B17C',
+  accent: '#D06A3B',
+  accentAlt: '#F19953',
+  accentSoft: '#F5C396',
+  success: '#9BCF8F',
+  warning: '#F2AE66',
+  danger: '#E3653C',
+  idle: '#B18C7B',
+};
+
 const SENSOR_INTERVAL_MS = 100;
 const INITIAL_READING: SensorReading = {
   x: 0,
@@ -176,7 +196,10 @@ function App() {
 
   return (
     <SafeAreaProvider>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+      <StatusBar
+        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+        backgroundColor={isDarkMode ? palette.backgroundDark : palette.backgroundLight}
+      />
       <SafeAreaView
         style={[styles.safeArea, isDarkMode ? styles.darkBackground : styles.lightBackground]}
       >
@@ -206,6 +229,7 @@ function AppContent({ isDarkMode }: AppContentProps) {
   const [socketUrl, setSocketUrl] = useState('http://localhost:3000/stream');
   const [socketStatus, setSocketStatus] = useState<SocketStatus>('disconnected');
   const [socketStatusMessage, setSocketStatusMessage] = useState<string | null>(null);
+  const [cadence, setCadence] = useState(0);
   const socketRef = useRef<TelemetrySocket | null>(null);
 
   useEffect(() => {
@@ -541,15 +565,46 @@ function AppContent({ isDarkMode }: AppContentProps) {
 
   const textColor = isDarkMode ? styles.textLight : styles.textDark;
 
+  const fetchGaitAnalysis = useCallback(async () => {
+    try {
+      const response = await fetch('http://localhost:3000/api/gait-analysis');
+      if (!response.ok) {
+        throw new Error(`Server responded with status ${response.status}`);
+      }
+
+      const payload = await response.json();
+      const cadenceValue = Number(payload?.cadence);
+
+      if (!Number.isFinite(cadenceValue)) {
+        throw new Error('Cadence value missing from gait analysis response.');
+      }
+
+      setCadence(cadenceValue);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error occurred.';
+      Alert.alert('Gait analysis failed', message);
+    }
+  }, [setCadence]);
+
   return (
     <ScrollView
       style={styles.scroll}
       contentContainerStyle={[styles.container, { paddingTop: insets.top || 16 }]}
     >
-      <Text style={[styles.title, textColor]}>Motion Monitor</Text>
-      <Text style={[styles.subtitle, textColor]}>
-        Real-time accelerometer and gyroscope readings from the device sensors.
-      </Text>
+      <View
+        style={[styles.heroCard, isDarkMode ? styles.heroCardDark : styles.heroCardLight]}
+      >
+        <Text
+          style={[styles.title, isDarkMode ? styles.titleDark : styles.titleLight]}
+        >
+          Motion Monitor
+        </Text>
+        <Text
+          style={[styles.subtitle, isDarkMode ? styles.heroSubtitleDark : styles.heroSubtitleLight]}
+        >
+          Real-time accelerometer and gyroscope readings from the device sensors.
+        </Text>
+      </View>
 
       <View
         style={[
@@ -557,18 +612,23 @@ function AppContent({ isDarkMode }: AppContentProps) {
           isDarkMode ? styles.sectionDark : styles.sectionLight,
         ]}
       >
-        <Text style={[styles.sectionTitle, textColor]}>Sensor Tracking</Text>
+        <Text
+          style={[styles.sectionTitle, isDarkMode ? styles.sectionTitleDark : styles.sectionTitleLight]}
+        >
+          Sensor Tracking
+        </Text>
         <View style={styles.buttonRow}>
           <Button
             onPress={startTracking}
             title="Start"
             disabled={tracking}
+            color={palette.accent}
           />
           <Button
             onPress={stopTracking}
             title="Stop"
             disabled={!tracking}
-            color="#d9534f"
+            color={palette.danger}
           />
         </View>
       </View>
@@ -579,7 +639,11 @@ function AppContent({ isDarkMode }: AppContentProps) {
           isDarkMode ? styles.sectionDark : styles.sectionLight,
         ]}
       >
-        <Text style={[styles.sectionTitle, textColor]}>Live Stream</Text>
+        <Text
+          style={[styles.sectionTitle, isDarkMode ? styles.sectionTitleDark : styles.sectionTitleLight]}
+        >
+          Live Stream
+        </Text>
         <Text style={[styles.helperText, textColor]}>
           When tracking is active, Motion Monitor connects to a Socket.IO endpoint and emits live sensor_update events.
         </Text>
@@ -588,7 +652,7 @@ function AppContent({ isDarkMode }: AppContentProps) {
           onChangeText={setSocketUrl}
           placeholder="http://localhost:3000/stream"
           style={[styles.input, isDarkMode ? styles.inputDark : styles.inputLight]}
-          placeholderTextColor={isDarkMode ? '#888' : '#666'}
+          placeholderTextColor={isDarkMode ? '#9E8372' : '#B58D74'}
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="url"
@@ -621,7 +685,11 @@ function AppContent({ isDarkMode }: AppContentProps) {
           isDarkMode ? styles.sectionDark : styles.sectionLight,
         ]}
       >
-        <Text style={[styles.sectionTitle, textColor]}>Clinician Dashboard</Text>
+        <Text
+          style={[styles.sectionTitle, isDarkMode ? styles.sectionTitleDark : styles.sectionTitleLight]}
+        >
+          Clinician Dashboard
+        </Text>
         <Text style={[styles.helperText, textColor]}>
           Last {CLINICIAN_HISTORY_LIMIT} streamed accelerometer magnitudes from the backend feed.
         </Text>
@@ -638,7 +706,33 @@ function AppContent({ isDarkMode }: AppContentProps) {
           isDarkMode ? styles.sectionDark : styles.sectionLight,
         ]}
       >
-  <Text style={[styles.sectionTitle, textColor]}>Accelerometer (m/s^2)</Text>
+        <Text
+          style={[styles.sectionTitle, isDarkMode ? styles.sectionTitleDark : styles.sectionTitleLight]}
+        >
+          Physiotherapy Tools
+        </Text>
+        <Text style={[styles.helperText, textColor]}>
+          Run a gait analysis to estimate cadence from recent sensor history.
+        </Text>
+        <View style={styles.buttonRow}>
+          <Button title="Analyze Gait" onPress={fetchGaitAnalysis} color={palette.accentAlt} />
+        </View>
+        <Text style={[styles.statusText, textColor]}>
+          Cadence: {cadence.toFixed(1)} steps/min
+        </Text>
+      </View>
+
+      <View
+        style={[
+          styles.section,
+          isDarkMode ? styles.sectionDark : styles.sectionLight,
+        ]}
+      >
+        <Text
+          style={[styles.sectionTitle, isDarkMode ? styles.sectionTitleDark : styles.sectionTitleLight]}
+        >
+          Accelerometer (m/s^2)
+        </Text>
         <SensorReadingRow
           labels={['X', 'Y', 'Z']}
           values={formattedAccelerometer}
@@ -686,7 +780,11 @@ function AppContent({ isDarkMode }: AppContentProps) {
           isDarkMode ? styles.sectionDark : styles.sectionLight,
         ]}
       >
-        <Text style={[styles.sectionTitle, textColor]}>Gyroscope (rad/s)</Text>
+        <Text
+          style={[styles.sectionTitle, isDarkMode ? styles.sectionTitleDark : styles.sectionTitleLight]}
+        >
+          Gyroscope (rad/s)
+        </Text>
         <SensorReadingRow
           labels={['X', 'Y', 'Z']}
           values={formattedGyroscope}
@@ -734,7 +832,11 @@ function AppContent({ isDarkMode }: AppContentProps) {
           isDarkMode ? styles.sectionDark : styles.sectionLight,
         ]}
       >
-        <Text style={[styles.sectionTitle, textColor]}>Send Snapshot</Text>
+        <Text
+          style={[styles.sectionTitle, isDarkMode ? styles.sectionTitleDark : styles.sectionTitleLight]}
+        >
+          Send Snapshot
+        </Text>
         <Text style={[styles.helperText, textColor]}>
           Provide an HTTP endpoint to receive JSON payloads. This button sends the
           latest accelerometer and gyroscope readings.
@@ -744,17 +846,25 @@ function AppContent({ isDarkMode }: AppContentProps) {
           onChangeText={setServerUrl}
           placeholder="https://example.com/api/sensor"
           style={[styles.input, isDarkMode ? styles.inputDark : styles.inputLight]}
-          placeholderTextColor={isDarkMode ? '#888' : '#666'}
+          placeholderTextColor={isDarkMode ? '#9E8372' : '#B58D74'}
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="url"
         />
         <View style={styles.buttonRow}>
-          <Button onPress={sendSnapshot} title="Send Snapshot" disabled={isSending} />
+          <Button
+            onPress={sendSnapshot}
+            title="Send Snapshot"
+            disabled={isSending}
+            color={palette.accent}
+          />
         </View>
         <View style={styles.statusRow}>
           {isSending ? (
-            <ActivityIndicator size="small" color={isDarkMode ? '#fff' : '#000'} />
+            <ActivityIndicator
+              size="small"
+              color={isDarkMode ? palette.textOnDark : palette.textOnLight}
+            />
           ) : null}
           {statusMessage ? (
             <Text style={[styles.statusText, textColor]}>{statusMessage}</Text>
@@ -857,28 +967,70 @@ const styles = StyleSheet.create({
   },
   container: {
     paddingHorizontal: 24,
+    paddingBottom: 40,
     gap: 24,
   },
   lightBackground: {
-    backgroundColor: '#f5f7fa',
+    backgroundColor: palette.backgroundLight,
   },
   darkBackground: {
-    backgroundColor: '#101218',
+    backgroundColor: palette.backgroundDark,
   },
   textLight: {
-    color: '#f2f2f2',
+    color: palette.textOnDark,
   },
   textDark: {
-    color: '#111',
+    color: palette.textOnLight,
   },
   title: {
     fontSize: 28,
     fontWeight: '700',
-    marginBottom: 4,
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  titleLight: {
+    color: palette.headingLight,
+  },
+  titleDark: {
+    color: palette.headingDark,
+  },
+  heroCard: {
+    borderRadius: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  heroCardLight: {
+    backgroundColor: palette.accentSoft,
+    borderColor: palette.borderLight,
+    shadowColor: '#572815',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 16,
+    elevation: 6,
+  },
+  heroCardDark: {
+    backgroundColor: '#3B221A',
+    borderColor: palette.borderDark,
+    shadowColor: '#000',
+    shadowOpacity: 0.45,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 18,
+    elevation: 6,
   },
   subtitle: {
     fontSize: 16,
     lineHeight: 22,
+    marginTop: 4,
+  },
+  heroSubtitleLight: {
+    color: palette.textOnLight,
+    opacity: 0.85,
+  },
+  heroSubtitleDark: {
+    color: palette.textOnDark,
+    opacity: 0.85,
   },
   section: {
     borderRadius: 12,
@@ -886,27 +1038,34 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   sectionLight: {
-    backgroundColor: '#ffffff',
-    borderColor: '#e0e6ed',
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
+    backgroundColor: palette.surfaceLight,
+    borderColor: palette.borderLight,
+    shadowColor: '#552910',
+    shadowOpacity: 0.08,
     shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
+    shadowRadius: 12,
     elevation: 4,
   },
   sectionDark: {
-    backgroundColor: '#181b24',
-    borderColor: '#242a36',
+    backgroundColor: palette.surfaceDark,
+    borderColor: palette.borderDark,
     shadowColor: '#000',
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.35,
     shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
+    shadowRadius: 12,
     elevation: 4,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
     marginBottom: 12,
+    letterSpacing: 0.25,
+  },
+  sectionTitleLight: {
+    color: palette.headingLight,
+  },
+  sectionTitleDark: {
+    color: palette.headingDark,
   },
   helperText: {
     fontSize: 14,
@@ -926,14 +1085,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   inputLight: {
-    backgroundColor: '#fff',
-    borderColor: '#ccd6dd',
-    color: '#111',
+    backgroundColor: '#FFF6EB',
+    borderColor: palette.borderLight,
+    color: palette.textOnLight,
   },
   inputDark: {
-    backgroundColor: '#1c1f27',
-    borderColor: '#2e3441',
-    color: '#f2f2f2',
+    backgroundColor: '#352019',
+    borderColor: palette.borderDark,
+    color: palette.textOnDark,
   },
   buttonRow: {
     flexDirection: 'row',
@@ -967,10 +1126,10 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   readingLabelLight: {
-    color: '#6c7a89',
+    color: '#7C4B33',
   },
   readingLabelDark: {
-    color: '#a2adb9',
+    color: '#F3C49C',
   },
   readingValue: {
     fontSize: 20,
@@ -978,10 +1137,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   readingValueLight: {
-    color: '#2c3e50',
+    color: '#45241A',
   },
   readingValueDark: {
-    color: '#f0f4ff',
+    color: '#FFDCC0',
   },
   timestampText: {
     fontSize: 12,
@@ -1009,12 +1168,12 @@ const styles = StyleSheet.create({
     minWidth: 96,
   },
   statBlockLight: {
-    backgroundColor: '#f7f9fc',
-    borderColor: '#dde3ed',
+    backgroundColor: '#FFEEDB',
+    borderColor: palette.borderLight,
   },
   statBlockDark: {
-    backgroundColor: '#1f2330',
-    borderColor: '#2e3441',
+    backgroundColor: '#3A2219',
+    borderColor: palette.borderDark,
   },
   statLabel: {
     fontSize: 12,
@@ -1029,19 +1188,19 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#6c7a89',
+    backgroundColor: palette.idle,
   },
   connectionDotConnected: {
-    backgroundColor: '#28a745',
+    backgroundColor: palette.success,
   },
   connectionDotConnecting: {
-    backgroundColor: '#f0ad4e',
+    backgroundColor: palette.warning,
   },
   connectionDotDisconnected: {
-    backgroundColor: '#6c7a89',
+    backgroundColor: palette.idle,
   },
   connectionDotError: {
-    backgroundColor: '#d9534f',
+    backgroundColor: palette.danger,
   },
 });
 
