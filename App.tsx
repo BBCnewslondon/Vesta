@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Button,
   StatusBar,
   StyleSheet,
@@ -41,6 +42,11 @@ type ServerToClientEvents = {
   sensor_update: (payload: SensorEnvelope) => void;
   sensor_snapshot: (payload: SensorEnvelope) => void;
   error: (payload: { message: string }) => void;
+  fall_detected: (payload: {
+    message: string;
+    timestamp?: string;
+    acceleration?: number;
+  }) => void;
 };
 
 type ClientToServerEvents = {
@@ -167,6 +173,15 @@ function AppContent({ isDarkMode }: AppContentProps) {
       socket.on('connect', () => {
         setSocketStatus('connected');
         setSocketStatusMessage('WebSocket connected. Streaming live data.');
+      });
+
+      socket.on('fall_detected', (payload: { message?: string }) => {
+        console.warn('FALL DETECTED by server', payload);
+        Alert.alert(
+          'Fall Detected!',
+          payload?.message || 'The server detected a potential fall.',
+          [{ text: 'OK' }],
+        );
       });
 
       socket.on('connect_error', (error: Error) => {
