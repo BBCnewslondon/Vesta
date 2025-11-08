@@ -24,6 +24,7 @@ import {
   setUpdateIntervalForType,
 } from 'react-native-sensors';
 import type { Subscription } from 'rxjs';
+import SensorChart, { ChartSeries } from './src/components/SensorChart';
 
 type SensorReading = {
   x: number;
@@ -72,6 +73,62 @@ const INITIAL_READING: SensorReading = {
   z: 0,
   timestamp: 0,
 };
+const HISTORY_LIMIT = 200;
+
+type SensorSample = SensorReading & {
+  magnitude: number;
+};
+
+function computeMagnitude(reading: SensorReading): number {
+  return Math.sqrt(reading.x ** 2 + reading.y ** 2 + reading.z ** 2);
+}
+
+function appendSample(history: SensorSample[], reading: SensorReading): SensorSample[] {
+  if (!reading.timestamp) {
+    return history;
+  }
+
+  const sample: SensorSample = {
+    ...reading,
+    magnitude: computeMagnitude(reading),
+  };
+
+  const next = [...history, sample];
+  if (next.length > HISTORY_LIMIT) {
+    return next.slice(next.length - HISTORY_LIMIT);
+  }
+
+  return next;
+}
+
+function computeMagnitudeStats(history: SensorSample[]):
+  | { min: number; max: number; mean: number }
+  | null {
+  if (history.length === 0) {
+    return null;
+  }
+
+  const magnitudes = history.map(sample => sample.magnitude);
+  const min = Math.min(...magnitudes);
+  const max = Math.max(...magnitudes);
+  const mean = magnitudes.reduce((sum, value) => sum + value, 0) / magnitudes.length;
+
+  return { min, max, mean };
+}
+
+function computeWindowSeconds(history: SensorSample[]): number | null {
+  if (history.length < 2) {
+    return null;
+  }
+
+  const first = history[0]?.timestamp ?? 0;
+  const last = history[history.length - 1]?.timestamp ?? 0;
+  if (!first || !last || last <= first) {
+    return null;
+  }
+
+  return (last - first) / 1000;
+}
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
@@ -99,6 +156,8 @@ function AppContent({ isDarkMode }: AppContentProps) {
     useState<SensorReading>(INITIAL_READING);
   const [gyroscopeReading, setGyroscopeReading] =
     useState<SensorReading>(INITIAL_READING);
+  const [accelerometerHistory, setAccelerometerHistory] = useState<SensorSample[]>([]);
+  const [gyroscopeHistory, setGyroscopeHistory] = useState<SensorSample[]>([]);
   const [serverUrl, setServerUrl] = useState('http://localhost:3000/api/sensors');
   const [isSending, setIsSending] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -121,14 +180,22 @@ function AppContent({ isDarkMode }: AppContentProps) {
 
     subscriptions.push(
       accelerometer.subscribe(
-        reading => setAccelerometerReading(reading),
+        reading =>
+          setAccelerometerReading({
+            ...reading,
+            timestamp: Date.now(),
+          }),
         error => console.warn('Accelerometer error', error),
       ),
     );
 
     subscriptions.push(
       gyroscope.subscribe(
-        reading => setGyroscopeReading(reading),
+        reading =>
+          setGyroscopeReading({
+            ...reading,
+            timestamp: Date.now(),
+          }),
         error => console.warn('Gyroscope error', error),
       ),
     );
@@ -137,6 +204,22 @@ function AppContent({ isDarkMode }: AppContentProps) {
       subscriptions.forEach(subscription => subscription.unsubscribe());
     };
   }, [tracking]);
+
+  useEffect(() => {
+    if (!tracking) {
+      return;
+    }
+
+    setAccelerometerHistory(previous => appendSample(previous, accelerometerReading));
+  }, [accelerometerReading, tracking]);
+
+  useEffect(() => {
+    if (!tracking) {
+      return;
+    }
+
+    setGyroscopeHistory(previous => appendSample(previous, gyroscopeReading));
+  }, [gyroscopeReading, tracking]);
 
   const disconnectSocket = useCallback(() => {
     const socket = socketRef.current;
@@ -254,6 +337,8 @@ function AppContent({ isDarkMode }: AppContentProps) {
     disconnectSocket();
     setAccelerometerReading({ ...INITIAL_READING, timestamp: Date.now() });
     setGyroscopeReading({ ...INITIAL_READING, timestamp: Date.now() });
+    setAccelerometerHistory([]);
+    setGyroscopeHistory([]);
     setSocketStatusMessage('Streaming paused; connection closed.');
   }, [disconnectSocket]);
 
@@ -269,6 +354,85 @@ function AppContent({ isDarkMode }: AppContentProps) {
   const formattedGyroscope = useMemo(
     () => formatReading(gyroscopeReading),
     [gyroscopeReading],
+  );
+
+  const accelerometerTimestamps = useMemo(
+    () => accelerometerHistory.map(sample => sample.timestamp),
+    [accelerometerHistory],
+  );
+  const gyroscopeTimestamps = useMemo(
+    () => gyroscopeHistory.map(sample => sample.timestamp),
+    [gyroscopeHistory],
+  );
+
+  const accelerometerSeries = useMemo<ChartSeries[]>(
+    () => [
+      {
+        label: 'Acc X',
+        color: '#ff6b6b',
+        values: accelerometerHistory.map(sample => sample.x),
+      },
+      {
+        label: 'Acc Y',
+        color: '#feca57',
+        values: accelerometerHistory.map(sample => sample.y),
+      },
+      {
+        label: 'Acc Z',
+        color: '#1dd1a1',
+        values: accelerometerHistory.map(sample => sample.z),
+      },
+      {
+        label: '|a|',
+        color: '#54a0ff',
+        values: accelerometerHistory.map(sample => sample.magnitude),
+      },
+    ],
+    [accelerometerHistory],
+  );
+
+  const gyroscopeSeries = useMemo<ChartSeries[]>(
+    () => [
+      {
+        label: 'Gyro X',
+        color: '#ff9ff3',
+        values: gyroscopeHistory.map(sample => sample.x),
+      },
+      {
+        label: 'Gyro Y',
+        color: '#48dbfb',
+        values: gyroscopeHistory.map(sample => sample.y),
+      },
+      {
+        label: 'Gyro Z',
+        color: '#1dd1a1',
+        values: gyroscopeHistory.map(sample => sample.z),
+      },
+      {
+        label: '|omega|',
+        color: '#5f27cd',
+        values: gyroscopeHistory.map(sample => sample.magnitude),
+      },
+    ],
+    [gyroscopeHistory],
+  );
+
+  const accelerometerStats = useMemo(
+    () => computeMagnitudeStats(accelerometerHistory),
+    [accelerometerHistory],
+  );
+  const gyroscopeStats = useMemo(
+    () => computeMagnitudeStats(gyroscopeHistory),
+    [gyroscopeHistory],
+  );
+
+  const accelerometerWindowSeconds = useMemo(
+    () => computeWindowSeconds(accelerometerHistory),
+    [accelerometerHistory],
+  );
+  const gyroscopeWindowSeconds = useMemo(
+    () => computeWindowSeconds(gyroscopeHistory),
+    [gyroscopeHistory],
   );
 
   const sendSnapshot = useCallback(async () => {
@@ -315,7 +479,7 @@ function AppContent({ isDarkMode }: AppContentProps) {
 
   return (
     <ScrollView
-      style={{ flex: 1 }}
+      style={styles.scroll}
       contentContainerStyle={[styles.container, { paddingTop: insets.top || 16 }]}
     >
       <Text style={[styles.title, textColor]}>Motion Monitor</Text>
@@ -393,7 +557,7 @@ function AppContent({ isDarkMode }: AppContentProps) {
           isDarkMode ? styles.sectionDark : styles.sectionLight,
         ]}
       >
-        <Text style={[styles.sectionTitle, textColor]}>Accelerometer (m/s²)</Text>
+  <Text style={[styles.sectionTitle, textColor]}>Accelerometer (m/s^2)</Text>
         <SensorReadingRow
           labels={['X', 'Y', 'Z']}
           values={formattedAccelerometer}
@@ -402,6 +566,37 @@ function AppContent({ isDarkMode }: AppContentProps) {
         <Text style={[styles.timestampText, textColor]}>
           Updated {formatTimestamp(accelerometerReading.timestamp)}
         </Text>
+        <View style={styles.chartBlock}>
+          <Text style={[styles.helperTextSmall, textColor]}>
+            {accelerometerWindowSeconds
+              ? `Showing last ${accelerometerWindowSeconds.toFixed(1)} s of samples.`
+              : 'Collecting samples for trend view.'}
+          </Text>
+          <SensorChart
+            timestamps={accelerometerTimestamps}
+            series={accelerometerSeries}
+            isDarkMode={isDarkMode}
+          />
+          {accelerometerStats ? (
+            <View style={styles.statsRow}>
+              <StatBlock
+                label="Min |a|"
+                value={`${accelerometerStats.min.toFixed(2)} m/s^2`}
+                isDarkMode={isDarkMode}
+              />
+              <StatBlock
+                label="Mean |a|"
+                value={`${accelerometerStats.mean.toFixed(2)} m/s^2`}
+                isDarkMode={isDarkMode}
+              />
+              <StatBlock
+                label="Max |a|"
+                value={`${accelerometerStats.max.toFixed(2)} m/s^2`}
+                isDarkMode={isDarkMode}
+              />
+            </View>
+          ) : null}
+        </View>
       </View>
 
       <View
@@ -419,6 +614,37 @@ function AppContent({ isDarkMode }: AppContentProps) {
         <Text style={[styles.timestampText, textColor]}>
           Updated {formatTimestamp(gyroscopeReading.timestamp)}
         </Text>
+        <View style={styles.chartBlock}>
+          <Text style={[styles.helperTextSmall, textColor]}>
+            {gyroscopeWindowSeconds
+              ? `Showing last ${gyroscopeWindowSeconds.toFixed(1)} s of samples.`
+              : 'Collecting samples for trend view.'}
+          </Text>
+          <SensorChart
+            timestamps={gyroscopeTimestamps}
+            series={gyroscopeSeries}
+            isDarkMode={isDarkMode}
+          />
+          {gyroscopeStats ? (
+            <View style={styles.statsRow}>
+              <StatBlock
+                label="Min |omega|"
+                value={`${gyroscopeStats.min.toFixed(2)} rad/s`}
+                isDarkMode={isDarkMode}
+              />
+              <StatBlock
+                label="Mean |omega|"
+                value={`${gyroscopeStats.mean.toFixed(2)} rad/s`}
+                isDarkMode={isDarkMode}
+              />
+              <StatBlock
+                label="Max |omega|"
+                value={`${gyroscopeStats.max.toFixed(2)} rad/s`}
+                isDarkMode={isDarkMode}
+              />
+            </View>
+          ) : null}
+        </View>
       </View>
 
       <View
@@ -491,6 +717,40 @@ function SensorReadingRow({ labels, values, isDarkMode }: SensorReadingRowProps)
   );
 }
 
+type StatBlockProps = {
+  label: string;
+  value: string;
+  isDarkMode: boolean;
+};
+
+function StatBlock({ label, value, isDarkMode }: StatBlockProps) {
+  return (
+    <View
+      style={[
+        styles.statBlock,
+        isDarkMode ? styles.statBlockDark : styles.statBlockLight,
+      ]}
+    >
+      <Text
+        style={[
+          styles.statLabel,
+          isDarkMode ? styles.readingLabelDark : styles.readingLabelLight,
+        ]}
+      >
+        {label}
+      </Text>
+      <Text
+        style={[
+          styles.statValue,
+          isDarkMode ? styles.readingValueDark : styles.readingValueLight,
+        ]}
+      >
+        {value}
+      </Text>
+    </View>
+  );
+}
+
 function formatReading(reading: SensorReading): [string, string, string] {
   return [reading.x, reading.y, reading.z].map(value => value.toFixed(3)) as [
     string,
@@ -509,6 +769,9 @@ function formatTimestamp(timestamp: number): string {
 
 const styles = StyleSheet.create({
   safeArea: {
+    flex: 1,
+  },
+  scroll: {
     flex: 1,
   },
   container: {
@@ -567,6 +830,11 @@ const styles = StyleSheet.create({
   helperText: {
     fontSize: 14,
     marginBottom: 12,
+  },
+  helperTextSmall: {
+    fontSize: 12,
+    marginBottom: 8,
+    opacity: 0.75,
   },
   input: {
     borderRadius: 8,
@@ -638,6 +906,43 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 12,
     opacity: 0.75,
+  },
+  chartBlock: {
+    marginTop: 16,
+    gap: 12,
+  },
+  statsRow: {
+    marginTop: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    flexWrap: 'wrap',
+  },
+  statBlock: {
+    flex: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    gap: 4,
+    minWidth: 96,
+  },
+  statBlockLight: {
+    backgroundColor: '#f7f9fc',
+    borderColor: '#dde3ed',
+  },
+  statBlockDark: {
+    backgroundColor: '#1f2330',
+    borderColor: '#2e3441',
+  },
+  statLabel: {
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  statValue: {
+    fontSize: 16,
+    fontVariant: ['tabular-nums'],
+    fontWeight: '600',
   },
   connectionDot: {
     width: 10,
