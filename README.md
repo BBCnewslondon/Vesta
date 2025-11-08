@@ -1,97 +1,90 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# MotionMonitor
 
-# Getting Started
+MotionMonitor is a React Native application that reads motion sensor data from a handset or wearable and helps prototype the data pipeline for a remote monitoring platform. It streams live accelerometer and gyroscope values using the [`react-native-sensors`](https://github.com/react-native-sensors/react-native-sensors) package and can post snapshots to a configurable HTTP endpoint.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## Features
 
-## Step 1: Start Metro
+- Live accelerometer and gyroscope telemetry at a 100 ms sampling interval (tweakable in code).
+- Start/stop controls to manage sensor subscriptions and conserve battery.
+- Configurable endpoint field with a one-tap JSON payload sender for rapid backend testing.
+- Built-in Socket.IO client that streams readings to a configurable WebSocket namespace.
+- Light and dark mode aware UI with last-updated timestamps for each sensor channel.
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+## Prerequisites
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+Ensure the React Native development environment is installed by following the official [environment setup guide](https://reactnative.dev/docs/set-up-your-environment). The project uses the React Native CLI (bare workflow) and expects the Android SDK (for Android builds) and Xcode with CocoaPods (for iOS builds).
+
+## Installation
+
+Install JavaScript dependencies:
 
 ```sh
-# Using npm
-npm start
-
-# OR using Yarn
-yarn start
+npm install
 ```
 
-## Step 2: Build and run your app
-
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
+For iOS only (first run or after changing native dependencies):
 
 ```sh
-# Using npm
+cd ios
+bundle install
+bundle exec pod install
+cd ..
+```
+
+## Running the App
+
+Start Metro in one terminal window:
+
+```sh
+npm start
+```
+
+In another terminal, launch the native app:
+
+```sh
+# Android
 npm run android
 
-# OR using Yarn
-yarn android
-```
-
-### iOS
-
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
-```
-
-Then, and every time you update your native dependencies, run:
-
-```sh
-bundle exec pod install
-```
-
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
-
-```sh
-# Using npm
+# iOS
 npm run ios
-
-# OR using Yarn
-yarn ios
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+## Using the Sensor Dashboard
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+1. Launch the app on a device or simulator that has motion sensors available.
+2. Tap **Start** to begin streaming; tap **Stop** to release sensor subscriptions and zero out the readings.
+3. Enter an HTTP endpoint in the **Send Snapshot** field (for example, a local tunnel or test API).
+4. Select **Send Snapshot** to POST the most recent accelerometer and gyroscope readings as JSON.
+5. Configure the WebSocket URL (defaults to `http://localhost:3000/stream`) to stream live readings to your Socket.IO backend.
 
-## Step 3: Modify your app
+> The default endpoint (`http://localhost:3000/api/sensors`) is a placeholder; replace it with your backend URL. On physical devices, ensure the endpoint is reachable over the network.
 
-Now that you have successfully run the app, let's make changes!
+## Platform Notes
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+- **iOS**: `NSMotionUsageDescription` is defined in `ios/MotionMonitor/Info.plist`. Update the message if your compliance team requires specific wording.
+- **Android**: No additional runtime permissions are required for accelerometer or gyroscope access. If you later read heart-rate or body sensors, add `android.permission.BODY_SENSORS` to `android/app/src/main/AndroidManifest.xml`.
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+## Backend Service
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+A companion Flask + Socket.IO backend lives in the `backend/` folder. It exposes:
 
-## Congratulations! :tada:
+- `POST /api/sensors` for manual snapshots (mirrors the app's **Send Snapshot** button).
+- Socket.IO namespace `/stream` for live `sensor_update` events.
+- `GET /health` for readiness checks.
 
-You've successfully run and modified your React Native App. :partying_face:
+Quick start (from `backend/`):
 
-### Now what?
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python app.py
+```
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
+The server listens on `http://localhost:3000` by default and forwards live events to any connected dashboard or tooling.
 
-# Troubleshooting
+## Next Steps
 
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+- Extend the snapshot sender into a background streaming service or WebSocket client.
+- Integrate heart-rate or other wearable sensors as hardware becomes available.
+- Persist historical readings locally for offline review and analytics.
