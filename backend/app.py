@@ -46,8 +46,8 @@ def _close_data_file() -> None:
 
 
 # --- Fall detection state -------------------------------------------------------------
-FREEFALL_THRESHOLD = 2.0  # m/s^2
-IMPACT_THRESHOLD = 30.0  # m/s^2
+FREEFALL_THRESHOLD = 5.0  # m/s^2
+IMPACT_THRESHOLD = 15.0  # m/s^2
 FALL_TIME_WINDOW_MS = 1_000  # ms
 
 user_state: Dict[str, Dict[str, Any]] = {}
