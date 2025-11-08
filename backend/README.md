@@ -7,6 +7,8 @@ stream for live telemetry.
 
 - `/api/sensors` POST endpoint for the React Native app's snapshot button.
 - `/stream` Socket.IO namespace that accepts `sensor_update` events and re-broadcasts them to connected clients.
+- CSV logging of every `sensor_update` payload to `sensor_data.csv` for offline analysis and model training.
+- Simple freefall/impact fall detector that emits `fall_detected` Socket.IO events back to the originating client.
 - `/health` GET endpoint for readiness checks.
 
 ## Getting Started

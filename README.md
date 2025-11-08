@@ -8,6 +8,7 @@ MotionMonitor is a React Native application that reads motion sensor data from a
 - Start/stop controls to manage sensor subscriptions and conserve battery.
 - Configurable endpoint field with a one-tap JSON payload sender for rapid backend testing.
 - Built-in Socket.IO client that streams readings to a configurable WebSocket namespace.
+- Fall detection alert loop powered by a Flask back end with CSV logging for model development.
 - Light and dark mode aware UI with last-updated timestamps for each sensor channel.
 
 ## Prerequisites
@@ -81,7 +82,7 @@ pip install -r requirements.txt
 python app.py
 ```
 
-The server listens on `http://localhost:3000` by default and forwards live events to any connected dashboard or tooling.
+The server listens on `http://localhost:3000` by default, logs every `sensor_update` event to `backend/sensor_data.csv`, and forwards live events to any connected dashboard or tooling. A basic freefall/impact detector emits `fall_detected` events back to the originating client as a starting point for real-time alerting.
 
 ## Next Steps
 

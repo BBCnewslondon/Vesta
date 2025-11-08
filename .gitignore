@@ -77,3 +77,4 @@ yarn-error.log
 # Python backend
 backend/.venv/
 backend/__pycache__/
+backend/sensor_data.csv
