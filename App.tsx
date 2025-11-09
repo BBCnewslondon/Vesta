@@ -86,7 +86,7 @@ const palette = {
   idle: '#B18C7B',
 };
 
-const SENSOR_INTERVAL_MS = 100;
+const SENSOR_INTERVAL_MS = 500;
 const INITIAL_READING: SensorReading = {
   x: 0,
   y: 0,

@@ -4,7 +4,7 @@ from __future__ import annotations
 import atexit
 import csv
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict
 
@@ -82,7 +82,7 @@ def _close_data_file() -> None:
 # --- Fall detection state -------------------------------------------------------------
 FREEFALL_THRESHOLD = 5.0  # m/s^2
 IMPACT_THRESHOLD = 15.0  # m/s^2
-GYRO_IMPACT_THRESHOLD = 2.0  # rad/s
+GYRO_IMPACT_THRESHOLD = 0.5  # rad/s
 FALL_TIME_WINDOW_MS = 1_000  # ms
 
 user_state: Dict[str, Dict[str, Any]] = {}
@@ -180,6 +180,29 @@ def sensor_snapshot() -> Any:
 
     payload.setdefault("receivedAt", _current_timestamp())
     socketio.emit("sensor_snapshot", payload, namespace="/stream")
+
+    # Log the snapshot to CSV
+    acc = payload.get("accelerometer", {}) or {}
+    gyro = payload.get("gyroscope", {}) or {}
+    timestamp_ms = payload.get("timestamp")
+
+    try:
+        data_writer.writerow(
+            [
+                payload["receivedAt"],
+                timestamp_ms,
+                acc.get("x"),
+                acc.get("y"),
+                acc.get("z"),
+                gyro.get("x"),
+                gyro.get("y"),
+                gyro.get("z"),
+            ]
+        )
+        data_file_handle.flush()
+    except Exception as error:  # pragma: no cover
+        app.logger.error("Error writing snapshot to CSV: %s", error)
+
     return jsonify(message="Snapshot received."), 200
 
 
@@ -265,33 +288,46 @@ def analyze_gait() -> dict | None:
     if len(rows) < 2:
         return None
 
-    # Parse timestamps
-    timestamps = []
+    # Parse and validate data
+    valid_rows = []
     for row in rows:
         try:
-            ts = datetime.fromisoformat(row["server_timestamp_utc"])
-            timestamps.append(ts)
-        except (ValueError, TypeError):
+            ts_str = row["server_timestamp_utc"].replace('Z', '+00:00')
+            ts = datetime.fromisoformat(ts_str)
+            x = float(row["acc_x"].strip())
+            y = float(row["acc_y"].strip())
+            z = float(row["acc_z"].strip())
+            valid_rows.append((ts, x, y, z))
+        except (ValueError, TypeError, KeyError):
             continue
 
-    if len(timestamps) < 2:
+    if len(valid_rows) < 2:
         return None
+
+    # Sort by timestamp
+    valid_rows.sort(key=lambda x: x[0])
+
+    # Filter to last 60 seconds
+    if len(valid_rows) > 1:
+        latest_ts = valid_rows[-1][0]
+        cutoff = latest_ts - timedelta(seconds=60)
+        valid_rows = [row for row in valid_rows if row[0] >= cutoff]
+
+    if len(valid_rows) < 2:
+        return None
+
+    timestamps, acc_x, acc_y, acc_z = zip(*valid_rows)
 
     # Compute mean dt
     dts = [(timestamps[i + 1] - timestamps[i]).total_seconds() for i in range(len(timestamps) - 1)]
+    dts = [d for d in dts if d > 0]
+    if not dts:
+        return None
     dt = np.mean(dts)
     if dt <= 0 or np.isnan(dt):
         return None
 
     fs = 1 / dt
-
-    # Get acceleration data
-    try:
-        acc_x = [float(row["acc_x"]) for row in rows]
-        acc_y = [float(row["acc_y"]) for row in rows]
-        acc_z = [float(row["acc_z"]) for row in rows]
-    except (ValueError, KeyError):
-        return None
 
     acc_mag = np.sqrt(np.array(acc_x) ** 2 + np.array(acc_y) ** 2 + np.array(acc_z) ** 2)
 
@@ -302,12 +338,15 @@ def analyze_gait() -> dict | None:
     positive_freqs = xf[xf > 0]
     magnitudes = np.abs(yf[xf > 0])
 
-    if len(magnitudes) == 0:
+    if len(magnitudes) == 0 or np.any(np.isnan(magnitudes)):
         return None
 
     dominant_idx = np.argmax(magnitudes)
     dominant_freq = positive_freqs[dominant_idx]
     cadence = dominant_freq * 60
+
+    if not (np.isfinite(cadence) and cadence > 0):
+        return None
 
     return {
         "cadence": float(cadence),
